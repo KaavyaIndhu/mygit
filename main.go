@@ -1,12 +1,14 @@
 package main
 
 import (
-	"crypto/sha1"
-	"fmt"
-	"io"
-	"os"
-	"time"
-	"strings"
+    "fmt"
+    "os"
+    "strings"
+
+    "mygit/repository"
+    "mygit/objects"
+	"mygit/commits"
+	"mygit/branch"
 )
 
 func initRepo() {
@@ -19,116 +21,86 @@ func initRepo() {
 
 	os.Mkdir(".mygit/objects", 0755)
 	os.Mkdir(".mygit/commits", 0755)
+	os.Mkdir(".mygit/branches", 0755)
 
-	headFile, _ := os.Create(".mygit/HEAD")
-	headFile.Close()
+	// create staging index
 	indexFile, _ := os.Create(".mygit/index")
-    indexFile.Close()
+	indexFile.Close()
+
+	// initialize main branch
+	os.WriteFile(".mygit/branches/main", []byte(""), 0644)
+
+	// set HEAD to main
+	os.WriteFile(".mygit/HEAD", []byte("main"), 0644)
 
 	fmt.Println("Initialized empty MyGit repository")
 }
 
-func hashFile(filename string) {
-
-	file, err := os.Open(filename)
-	if err != nil {
-		fmt.Println("Error opening file:", err)
-		return
-	}
-	defer file.Close()
-
-	hasher := sha1.New()
-	io.Copy(hasher, file)
-
-	hash := fmt.Sprintf("%x", hasher.Sum(nil))
-
-	objectPath := ".mygit/objects/" + hash
-
-data, err := os.ReadFile(filename)
-if err != nil {
-	fmt.Println("Error reading file:", err)
-	return
-}
-
-err = os.WriteFile(objectPath, data, 0644)
-if err != nil {
-	fmt.Println("Error writing object:", err)
-	return
-}
-indexFile, err := os.OpenFile(".mygit/index", os.O_APPEND|os.O_WRONLY, 0644)
-if err != nil {
-	fmt.Println("Error opening index:", err)
-	return
-}
-defer indexFile.Close()
-
-entry := filename + " " + hash + "\n"
-indexFile.WriteString(entry)
-fmt.Println("Stored object:", hash)
-}
-func commit(message string) {
-
-	indexData, err := os.ReadFile(".mygit/index")
-	if err != nil {
-		fmt.Println("Error reading index:", err)
-		return
-	}
-
-	if len(indexData) == 0 {
-		fmt.Println("Nothing to commit")
-		return
-	}
-
-	timestamp := time.Now().Unix()
-
-	commitContent := "message: " + message + "\n"
-	commitContent += "time: " + time.Now().Format(time.RFC3339) + "\n"
-	commitContent += "files:\n"
-	commitContent += string(indexData)
-
-	commitFile := fmt.Sprintf(".mygit/commits/commit_%d", timestamp)
-
-	err = os.WriteFile(commitFile, []byte(commitContent), 0644)
-	if err != nil {
-		fmt.Println("Error writing commit:", err)
-		return
-	}
-
-	os.WriteFile(".mygit/HEAD", []byte(commitFile), 0644)
-
-	os.WriteFile(".mygit/index", []byte(""), 0644)
-
-	fmt.Println("Committed successfully:", commitFile)
-}
 func logCommits() {
 
-	files, err := os.ReadDir(".mygit/commits")
-	if err != nil {
-		fmt.Println("Error reading commits:", err)
-		return
-	}
+	branchData, err := os.ReadFile(".mygit/HEAD")
+    branch := strings.TrimSpace(string(branchData))
 
-	if len(files) == 0 {
+    commitData, err := os.ReadFile(".mygit/branches/" + branch)
+    current := strings.TrimSpace(string(commitData))
+	if err != nil {
 		fmt.Println("No commits yet")
 		return
 	}
 
-	for _, file := range files {
 
-		path := ".mygit/commits/" + file.Name()
+	for current != "" {
+
+		path := ".mygit/commits/" + current
 
 		data, err := os.ReadFile(path)
 		if err != nil {
 			fmt.Println("Error reading commit:", err)
-			continue
+			return
 		}
 
 		fmt.Println("------")
-		fmt.Println("commit:", file.Name())
+		fmt.Println("commit:", current)
 		fmt.Println(string(data))
+
+		lines := strings.Split(string(data), "\n")
+
+		parent := ""
+
+		for _, line := range lines {
+	if strings.HasPrefix(line, "parent:") {
+		parent = strings.TrimSpace(strings.TrimPrefix(line, "parent:"))
+
+		if strings.Contains(parent, "/") {
+			parts := strings.Split(parent, "/")
+			parent = parts[len(parts)-1]
+		}
 	}
 }
-func checkout(commitName string) {
+
+		current = parent
+	}
+}
+func checkout(target string) {
+
+	branchPath := ".mygit/branches/" + target
+
+	if _, err := os.Stat(branchPath); err == nil {
+
+		os.WriteFile(".mygit/HEAD", []byte(target), 0644)
+
+		commitData, _ := os.ReadFile(branchPath)
+		commitHash := strings.TrimSpace(string(commitData))
+
+		restoreCommit(commitHash)
+
+		fmt.Println("Switched to branch:", target)
+		return
+	}
+
+	restoreCommit(target)
+}
+func restoreCommit(commitName string) {
 
 	path := ".mygit/commits/" + commitName
 
@@ -138,10 +110,9 @@ func checkout(commitName string) {
 		return
 	}
 
-	lines := string(data)
-	rows := strings.Split(lines, "\n")
+	lines := strings.Split(string(data), "\n")
 
-	for _, row := range rows {
+	for _, row := range lines {
 
 		if strings.Contains(row, ".txt") {
 
@@ -172,7 +143,7 @@ func main() {
 	command := os.Args[1]
 
 	if command == "init" {
-		initRepo()
+		repository.InitRepo()
 
 	} else if command == "add" {
 
@@ -181,7 +152,7 @@ func main() {
 			return
 		}
 
-		hashFile(os.Args[2])
+		objects.HashFile(os.Args[2])
 
 	} else if command == "commit" {
 
@@ -190,7 +161,7 @@ func main() {
 		return
 	}
 
-	commit(os.Args[2])
+	commits.CreateCommit(os.Args[2])
 	} else if command == "log" {
 
 	logCommits()
@@ -203,6 +174,15 @@ func main() {
 	}
 
 	checkout(os.Args[2])
+	} else if command == "branch" {
+
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: mygit branch <name>")
+		return
+	}
+
+	branch.CreateBranch(os.Args[2])
+
 } else {
 	fmt.Println("Unknown command:", command)
 }
