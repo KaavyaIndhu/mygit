@@ -7,9 +7,12 @@ import (
 	"strings"
 	"time"
 )
-func CreateCommit(message string) {
+func CreateCommit(message string, debug bool) {
 
 	indexData, err := os.ReadFile(".mygit/index")
+	if debug {
+	fmt.Println("[DEBUG] Reading index...")
+    }
 	if err != nil {
 		fmt.Println("Error reading index:", err)
 		return
@@ -44,18 +47,26 @@ func CreateCommit(message string) {
 	commitContent += string(indexData)
 
 	// generate commit hash
+	if debug {
+	fmt.Println("[DEBUG] Generating commit hash...")
+    }
 	hasher := sha1.New()
 	hasher.Write([]byte(commitContent))
 	commitHash := fmt.Sprintf("%x", hasher.Sum(nil))
 
 	commitFile := ".mygit/commits/" + commitHash
-
+    if debug {
+	fmt.Println("[DEBUG] Writing commit object...")
+    }
 	err = os.WriteFile(commitFile, []byte(commitContent), 0644)
 	if err != nil {
 		fmt.Println("Error writing commit:", err)
 		return
 	}
 
+    if debug {
+	fmt.Println("[DEBUG] Updating branch pointer...")
+    }
 	// update branch pointer
 	branchPath := ".mygit/branches/" + branch
 	os.WriteFile(branchPath, []byte(commitHash), 0644)

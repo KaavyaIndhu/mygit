@@ -36,51 +36,6 @@ func initRepo() {
 	fmt.Println("Initialized empty MyGit repository")
 }
 
-func logCommits() {
-
-	branchData, err := os.ReadFile(".mygit/HEAD")
-    branch := strings.TrimSpace(string(branchData))
-
-    commitData, err := os.ReadFile(".mygit/branches/" + branch)
-    current := strings.TrimSpace(string(commitData))
-	if err != nil {
-		fmt.Println("No commits yet")
-		return
-	}
-
-
-	for current != "" {
-
-		path := ".mygit/commits/" + current
-
-		data, err := os.ReadFile(path)
-		if err != nil {
-			fmt.Println("Error reading commit:", err)
-			return
-		}
-
-		fmt.Println("------")
-		fmt.Println("commit:", current)
-		fmt.Println(string(data))
-
-		lines := strings.Split(string(data), "\n")
-
-		parent := ""
-
-		for _, line := range lines {
-	if strings.HasPrefix(line, "parent:") {
-		parent = strings.TrimSpace(strings.TrimPrefix(line, "parent:"))
-
-		if strings.Contains(parent, "/") {
-			parts := strings.Split(parent, "/")
-			parent = parts[len(parts)-1]
-		}
-	}
-}
-
-		current = parent
-	}
-}
 func checkout(target string) {
 
 	branchPath := ".mygit/branches/" + target
@@ -161,10 +116,16 @@ func main() {
 		return
 	}
 
-	commits.CreateCommit(os.Args[2])
+	debug := false
+
+    if len(os.Args) > 3 && os.Args[3] == "--debug" {
+	debug = true
+    }
+
+commits.CreateCommit(os.Args[2], debug)
 	} else if command == "log" {
 
-	logCommits()
+	commits.ShowLog()
 
 } else if command == "checkout" {
 

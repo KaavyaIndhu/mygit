@@ -5,7 +5,15 @@ import (
 	"os"
 	"strings"
 )
-
+func extractMessage(data string) string {
+	lines := strings.Split(data, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "message:") {
+			return strings.TrimPrefix(line, "message: ")
+		}
+	}
+	return ""
+}
 func ShowLog() {
 
 	branchData, err := os.ReadFile(".mygit/HEAD")
@@ -34,9 +42,8 @@ func ShowLog() {
 			return
 		}
 
-		fmt.Println("------")
-		fmt.Println("commit:", current)
-		fmt.Println(string(data))
+		fmt.Println("*", current[:8], "-", extractMessage(string(data)))
+        fmt.Println("|")
 
 		lines := strings.Split(string(data), "\n")
 

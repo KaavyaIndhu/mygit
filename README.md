@@ -19,6 +19,13 @@ Instead of using Git itself, this project recreates many of Git’s core ideas f
 
 ---
 
+## Additional Features
+
+- Visual commit graph for better history representation  
+- Debug mode to trace internal operations during commits  
+
+---
+
 # How It Works
 
 MyGit stores repository metadata inside a hidden directory:
